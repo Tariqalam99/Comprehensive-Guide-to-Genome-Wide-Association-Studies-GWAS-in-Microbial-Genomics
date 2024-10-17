@@ -1,117 +1,150 @@
 # Comprehensive-Guide-to-Genome-Wide-Association-Studies-GWAS-in-Microbial-Genomics
 
-Introduction
+# Introduction
 
 Welcome to this comprehensive guide on performing Genome-Wide Association Studies (GWAS) in microbial organisms. This tutorial will walk you through the installation of necessary packages, data loading, and running various statistical models to identify significant genetic associations. Whether you're a beginner or looking to refine your GWAS workflow, this guide provides step-by-step instructions to help you achieve accurate and meaningful results.
 
-Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following:
 
-R installed on your computer. You can download it from CRAN.
-Basic understanding of R programming and genomic data.
-Access to your phenotypic and genotypic data files (e.g., FG95195.txt and Pnodorum_geno.txt).
+- **R** installed on your computer. You can download it from [CRAN](https://cran.r-project.org/).
+- Basic understanding of R programming and genomic data.
+- Access to your phenotypic and genotypic data files (e.g., `FG95195.txt` and `Pnodorum_geno.txt`).
 
-1. Installing and Loading Required Packages
 
-This demonstration primarily utilizes the GAPIT package for GWAS analysis. Additionally, we'll use the qqman package for creating Manhattan plots.
+## Installing/loading packages
 
-GAPIT Installation
-GAPIT can be installed using two methods:
+This demonstration will primarily use the package GAPIT. The user manual is very descriptive and easy to follow (https://www.zzlab.net/GAPIT/gapit_help_document.pdf)
 
-Option 1: Direct Sourcing (Easiest but requires sourcing every session)
 
+Lipka, AE., Tian, F., Wang, Q., Peiffer, J., Li, M., Bradbury, P.J., Gore, M.A., Buckler, E.S., and Zhang, Z. GAPIT: genome association and prediction integrated tool. Bioinformatics. 2012. 28(18):2397-2399.
+
+Install/load GAPIT with one of the following options (first option is easiest, but you have to do it every time you start a new R session):
+
+Option 1:
+
+```{r, eval = FALSE}
 source("http://www.zzlab.net/GAPIT/GAPIT.library.R")
 source("http://www.zzlab.net/GAPIT/gapit_functions.txt")
+```
 
-Option 2: Using devtools (Permanent installation)
+Option 2:
 
+```{r, eval = FALSE}
 install.packages("devtools")
-devtools::install_github("jiabowang/GAPIT3", force = TRUE)
+devtools::install_github("jiabowang/GAPIT3",force=TRUE)
 library(GAPIT3)
+```
 
-Installing and Loading qqman
-The qqman package is excellent for creating customizable Manhattan plots.
+```{r, eval=TRUE, echo=FALSE, message = FALSE, error=FALSE, warning=FALSE}
+library(GAPIT3)
+```
 
+The 'qqman' package has a nice function for making Manhattan plots. GAPIT will automatically output Manhattan plots, but I find it a little bit easier to produce customizable figures using this package.
+
+```{r, eval = FALSE}
 install.packages("qqman")
 library(qqman)
+```
 
-2. Loading and Viewing Data
+```{r, echo = FALSE, message = FALSE, error=FALSE, warning=FALSE}
+library(qqman)
+```
+## Loading and viewing data
 
-Ensure your working directory is set to the location of your data files.
+First, let's load our phenotypic and genotypic data (remember to set your working directory to where the data is located)
 
-# Set working directory (modify the path as needed)
-setwd("/path/to/your/data")
+```{r, eval = TRUE, cache = TRUE}
+myY <- read.table("FG95195.txt", head = TRUE)
+myG <- read.table("Pnodorum_geno.txt", head = FALSE)
+```
 
-# Load phenotypic and genotypic data
-myY <- read.table("FG95195.txt", header = TRUE)
-myG <- read.table("Pnodorum_geno.txt", header = FALSE)
 
-# View the datasets
+Next, we will examine each dataset to get familiar with the format
+
+```{r, eval = FALSE}
 View(myY)
 View(myG)
+```
 
-3. Running a General Linear Model (GLM)
+## Running a general linear model (GLM)
 
-GWAS typically involves testing multiple statistical models. We'll start with a naive GLM that does not account for population structure or kinship.
+A typical GWAS workflow includes testing various models. First, we will test two different general linear models. One will only test associations between the markers and traits, without correction for population structure or kinship. This is commonly referred to as a naive model.
 
-glm_naive <- GAPIT(Y = myY, G = myG, PCA.total = 0, model = "GLM")
+```{r, eval = TRUE, results = "hide", cache = TRUE, error = FALSE, message = FALSE, warning = FALSE}
+glm_naive <- GAPIT(Y=myY, G=myG, PCA.total = 0, model = "GLM")
+```
 
-Analyzing Results
-Focus on QQ plots and Manhattan plots to assess associations.
+This analysis will output a lot of useful files and figures. For the purposes of this workshop, we will focus on the QQ plot and Manhattan plots.
 
-# QQ Plot
+```{r, echo=TRUE, cache = TRUE}
 qq(glm_naive$GWAS$P.value)
+```
 
-# Convert chromosome and position to numeric
+This QQ plot is comparing the observed p-values from this analysis to the expected distribution of p-values under the null hypothesis. The solid line represents a p-value distribution if no significant associations were detected. A deviation above that line would represent over-inflation of p-values, indicating the potential detection of false positives. If we identify a true association, we do expect to see a sharp peak towards in the upper right of this figure. Overall, based on this plot, we see that we do have over-inflated p-values and we should try to correct this using a different model.
+
+```{r, echo=TRUE, cache = TRUE}
 glm_naive$GWAS$Chromosome <- as.numeric(glm_naive$GWAS$Chromosome)
 glm_naive$GWAS$Position <- as.numeric(glm_naive$GWAS$Position)
+```
 
-# Manhattan Plot
-manhattan(glm_naive$GWAS, chr = "Chromosome", bp = "Position", snp = "SNP", p = "P.value", genomewideline = 6.8)
+```{r, cache=TRUE, message=FALSE,error=FALSE,warning=FALSE}
+manhattan(glm_naive$GWAS, chr="Chromosome", bp="Position", snp="SNP", p = "P.value", genomewideline = 6.8)
+```
 
-Interpretation: The QQ plot compares observed p-values to expected ones under the null hypothesis. Deviations indicate potential associations. The Manhattan plot visualizes significant markers across chromosomes.
+The Manhattan plot shows us our significant associations. The chromosomes/contigs are listed on the x-axis and the -log10(p) values are listed on the y-axis. Each dot represents a single marker. We can see that we identified a significant association in the sub-telomeric region of chromosome 3, as well as some other loci that crossed our significance threshold (Bonferroni correction).
 
-4. Incorporating Population Structure with GLM
 
-To correct for potential population stratification, include Principal Components (PCs) as covariates.
+Since we could see that our p-values may be inflated, the next GLM will incorporate population structure as a covariate (fixed effect). Principal coordinates analysis (PCA) is a common method to do this and is easily incorporated in GAPIT. Other options could be output from programs such as STRUCTURE, which could also be imported into R and used as a covariate.
 
-glm_model_selection <- GAPIT(Y = myY, G = myG, PCA.total = 3, Model.selection = TRUE)
+Since we can use results from PCA as a covariate, how many PCs should we decide to use? Each PC explains a proportion of the cumulative variation. Typically, you could select the amount of PCs that explain ~25% or 50% of the variation. In GAPIT, we can activate 'model selection', which will select the 'best' model based on Bayesian information criterion (BIC).
 
-Comparing Models
+```{r, eval = TRUE, results = "hide", cache = TRUE, error = FALSE, message = FALSE, warning = FALSE}
+glm_model_selection <- GAPIT(Y=myY, G=myG, PCA.total = 3, Model.selection = TRUE)
+```
 
-# QQ Plot for Model Selection
+Now, compare our results from the naive model to the GLM with correction for population structure.
+
+```{r, echo=TRUE, cache = TRUE}
 qq(glm_model_selection$GWAS$P.value)
+```
 
-# Convert chromosome and position to numeric
-glm_model_selection$GWAS$Chromosome <- as.numeric(glm_model_selection$GWAS$Chromosome)
-glm_model_selection$GWAS$Position <- as.numeric(glm_model_selection$GWAS$Position)
+It looks like this model did a better job at controlling inflated p-values (i.e. potential spurious associations). However, there is still some deviation from the null distribution.
 
-# Manhattan Plot for Model Selection
-manhattan(glm_model_selection$GWAS, chr = "Chromosome", bp = "Position", snp = "SNP", p = "P.value", genomewideline = 6.8)
 
-Interpretation: Including PCs helps control for false positives by accounting for population structure, leading to more reliable associations.
+```{r, echo=TRUE, cache = TRUE}
+glm_model_selection$GWAS$Chromosome <- as.numeric(glm_naive$GWAS$Chromosome)
+glm_model_selection$GWAS$Position <- as.numeric(glm_naive$GWAS$Position)
+```
 
-5. Running a Mixed Linear Model (MLM)
+```{r, cache=TRUE, message=FALSE,error=FALSE,warning=FALSE}
+manhattan(glm_model_selection$GWAS, chr="Chromosome", bp="Position", snp="SNP", p = "P.value", genomewideline = 6.8)
+```
 
-To further control for relatedness (kinship) among samples, use a Mixed Linear Model.
+Our major peak on chromosome 3 is still highly significant. Some of the minor association detected with the naive model are now below the significance threshold and may have been spurious associations.
 
-mlm_pca <- GAPIT(Y = myY, G = myG, PCA.total = 1, model = "MLM", kinship.algorithm = "EMMA")
+## Running a mixed linear model (MLM)
 
-Comparing All Models
+In addition to incorporating population structure as a fixed effect, we can also control for false positives by including kinship (relatedness) as a random effect in a mixed linear model. There are several variations of this MLM (compressed MLM, enhanced MLM) that can be run in GAPIT, but we will just focus on the 'classic' example using the EMMA algorithm.
 
-# QQ Plot for MLM
+```{r, eval = TRUE, results = "hide", cache = TRUE, error = FALSE, message = FALSE, warning = FALSE}
+mlm_pca <- GAPIT(Y=myY, G=myG, PCA.total = 1, model = "MLM", kinship.algorithm = "EMMA")
+```
+
+Compare these results to both iterations of the GLM. What differences do you observe in the QQ plots? What differences do you observe in the Manhattan plots? Is there a 'best' model?
+
+```{r, echo=TRUE, cache = TRUE}
 qq(mlm_pca$GWAS$P.value)
+```
 
-# Convert chromosome and position to numeric
+```{r, echo=TRUE, cache = TRUE}
 mlm_pca$GWAS$Chromosome <- as.numeric(glm_naive$GWAS$Chromosome)
 mlm_pca$GWAS$Position <- as.numeric(glm_naive$GWAS$Position)
+```
 
-# Manhattan Plot for MLM
-manhattan(mlm_pca$GWAS, chr = "Chromosome", bp = "Position", snp = "SNP", p = "P.value", genomewideline = 6.8)
+```{r, cache=TRUE, message=FALSE,error=FALSE,warning=FALSE}
+manhattan(mlm_pca$GWAS, chr="Chromosome", bp="Position", snp="SNP", p = "P.value", genomewideline = 6.8)
+```
 
-Interpretation: The MLM often provides the best control for false positives by accounting for both population structure and kinship, leading to more accurate identification of significant loci.
-
-Conclusion
-
-Through this guide, you've learned how to perform GWAS in microbial organisms using different statistical models to identify significant genetic associations. By comparing GLM and MLM approaches, you can select the most appropriate model for your specific dataset and research objectives.
+After testing all three models, it appears that the MLM may be the 'best' model. But what does that really mean? All three models detected our major locus. From a biological perspective, if we are aiming to identify the major effect genes underlying virulence, any of these models would have resulted in the successful detection of this gene. However, if we wanted to investigate the minor effect loci further, it may be best to start with the model that appeared to control for false positives more effectively (but still consider all models!).
